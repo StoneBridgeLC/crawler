@@ -3,6 +3,7 @@ package headline
 import (
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	"github.com/davecgh/go-spew/spew"
 	"golang.org/x/text/encoding/korean"
 	"golang.org/x/text/transform"
 	"net/http"
@@ -11,6 +12,7 @@ import (
 )
 
 type Article struct {
+	Url string
 	Title string
 	Body string
 	CreateTime time.Time
@@ -18,7 +20,6 @@ type Article struct {
 }
 
 func scrapNews(client *http.Client, url string) (Article, error) {
-
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return Article{}, err
@@ -32,6 +33,10 @@ func scrapNews(client *http.Client, url string) (Article, error) {
 		return Article{}, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		return Article{}, fmt.Errorf("scrapNews : response statuscode is not 200\n%v", spew.Sdump(req))
+	}
 
 	// response content-type=text/html:charset=EUC-KR
 	reader := transform.NewReader(resp.Body, korean.EUCKR.NewDecoder())
@@ -59,6 +64,7 @@ func scrapNews(client *http.Client, url string) (Article, error) {
 	}
 
 	article := Article{
+		Url: url,
 		CreateTime: articleTimes[0],
 		UpdateTime: articleTimes[1],
 	}
@@ -69,7 +75,7 @@ func scrapNews(client *http.Client, url string) (Article, error) {
 	return article, nil
 }
 
-// 2006.01.02. 오후 3:04
+// layout : 2006.01.02. 오후 3:04
 func parseTime(timestr string) (time.Time, error) {
 	kstTimeZone := time.FixedZone("KST", int(time.Hour * 9))
 
