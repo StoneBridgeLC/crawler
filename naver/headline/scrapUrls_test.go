@@ -6,7 +6,7 @@ import (
 	"testing"
 )
 
-func Test_getNewsList(t *testing.T) {
+func Test_scrapUrls(t *testing.T) {
 
 	defaultTransportPointer, ok := http.DefaultTransport.(*http.Transport)
 	if !ok { panic(fmt.Sprintf("defaultRoundTripper not an *http.Transport")) }
@@ -15,7 +15,7 @@ func Test_getNewsList(t *testing.T) {
 	defaultTransport.MaxIdleConnsPerHost = 100
 	client := &http.Client{Transport: &defaultTransport}
 
-	urls, err := getNewsList(client)
+	urls, err := scrapUrls(client)
 	if err != nil {
 		t.Error(err)
 	}
