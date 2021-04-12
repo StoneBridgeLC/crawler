@@ -66,8 +66,15 @@ func scrapNews(client *http.Client, url string) (Article, error) {
 	article := Article{
 		Url: url,
 		CreateTime: articleTimes[0],
-		UpdateTime: articleTimes[1],
+		//UpdateTime: articleTimes[0],
 	}
+	// 입력시간만 있고 수정시간이 없는 경우도 있음
+	if len(articleTimes) > 1 {
+		article.UpdateTime = articleTimes[1]
+	} else {
+		article.UpdateTime = articleTimes[0]
+	}
+
 	article.Title = doc.Find("h3#articleTitle").Text()
 	doc.Find("#articleBodyContents").Children().Remove()
 	article.Body = strings.TrimSpace(doc.Find("#articleBodyContents").Text())
@@ -77,7 +84,7 @@ func scrapNews(client *http.Client, url string) (Article, error) {
 
 // layout : 2006.01.02. 오후 3:04
 func parseTime(timestr string) (time.Time, error) {
-	kstTimeZone := time.FixedZone("KST", int(time.Hour * 9))
+	kstTimeZone := time.FixedZone("KST", 9*60*60)
 
 	if t, err := time.ParseInLocation("2006.01.02. 오전 3:04", timestr, kstTimeZone); err == nil {
 		return t, nil

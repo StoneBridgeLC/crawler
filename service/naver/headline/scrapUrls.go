@@ -46,7 +46,7 @@ func scrapUrls(client *http.Client) ([]string, error) {
 	doc.Find(".hdline_article_tit a").Each(func(i int, s *goquery.Selection) {
 		url, ok := s.Attr("href")
 		if ok {
-			newsUrls = append(newsUrls, naverNewsDomain + url)
+			newsUrls = append(newsUrls, naverNewsDomain+ url)
 		}
 	})
 

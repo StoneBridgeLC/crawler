@@ -248,7 +248,7 @@ func scrapComments(client *http.Client, newsUrl string, lastCrawledTime time.Tim
 			}
 
 			// regTimeGmt보다 lastCrawledTime이 더 최근이면 이미 크롤링 된 댓글
-			if lastCrawledTime.After(regTimeGmt) {
+			if lastCrawledTime.After(regTimeGmt) || lastCrawledTime.Equal(regTimeGmt) {
 				continue
 			}
 
