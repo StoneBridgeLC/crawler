@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"github.com/aws/aws-lambda-go/events"
 	"github.com/aws/aws-lambda-go/lambda"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -13,6 +14,10 @@ import (
 	"os"
 	"time"
 )
+
+// set GOOS=linux
+// go build -o main main.go
+// path\go\bin\build-lambda-zip.exe -output main.zip main
 
 func main() {
 	lambda.Start(lambdaHandler)
