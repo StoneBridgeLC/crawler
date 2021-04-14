@@ -1,25 +1,30 @@
 package main
 
 import (
+	"context"
 	"crawler/service/naver/headline"
 	"fmt"
-	_ "github.com/go-sql-driver/mysql"
+	"github.com/aws/aws-lambda-go/events"
+	"github.com/aws/aws-lambda-go/lambda"
 	"github.com/jmoiron/sqlx"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"log"
 	"net/http"
 	"os"
 	"time"
 )
 
 func main() {
+	lambda.Start(lambdaHandler)
+}
+
+func lambdaHandler(ctx context.Context, event events.CloudWatchEvent) error {
 	logger, err := zap.NewProduction()
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 	defer logger.Sync()
-	sugar := logger.Sugar()
+	sugar := logger.Sugar().Named(event.ID)
 
 	DB_USER := os.Getenv("DB_USER")
 	DB_PW := os.Getenv("DB_PW")
@@ -30,7 +35,7 @@ func main() {
 	dataSourceName := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?parseTime=true", DB_USER, DB_PW, DB_IP, DB_PORT, DB_NAME)
 	db, err := sqlx.Open("mysql", dataSourceName)
 	if err != nil {
-		sugar.Fatal("failed to db open", err)
+		return errors.Wrap(err, "failed to db open")
 	}
 	defer db.Close()
 	sugar.Infow("DB open",
@@ -47,7 +52,7 @@ func main() {
 	defaultTransport.MaxIdleConnsPerHost = 100
 	client := &http.Client{Transport: &defaultTransport}
 
-	crawler := headline.HeadlineNewsCrawler{
+	crawler := &headline.HeadlineNewsCrawler{
 		Log: sugar,
 		DB: db,
 		Client: client,
@@ -57,4 +62,6 @@ func main() {
 		crawler.Log.Errorw("failed to Crawling()",
 			"error with stack", errors.WithStack(err))
 	}
+
+	return nil
 }
