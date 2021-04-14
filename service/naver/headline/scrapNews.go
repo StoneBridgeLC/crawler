@@ -3,9 +3,10 @@ package headline
 import (
 	"fmt"
 	"github.com/PuerkitoBio/goquery"
-	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/errors"
 	"golang.org/x/text/encoding/korean"
 	"golang.org/x/text/transform"
+	"moul.io/http2curl"
 	"net/http"
 	"strings"
 	"time"
@@ -19,7 +20,10 @@ type Article struct {
 	UpdateTime time.Time
 }
 
-func scrapNews(client *http.Client, url string) (Article, error) {
+func (c HeadlineNewsCrawler) scrapNews(url string) (Article, error) {
+	c.Log.Infow("start scrapNews",
+		"url", url)
+
 	req, err := http.NewRequest(http.MethodGet, url, nil)
 	if err != nil {
 		return Article{}, err
@@ -28,14 +32,18 @@ func scrapNews(client *http.Client, url string) (Article, error) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
 
-	resp, err := client.Do(req)
+	resp, err := c.Client.Do(req)
 	if err != nil {
 		return Article{}, err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != 200 {
-		return Article{}, fmt.Errorf("scrapNews : response statuscode is not 200\n%v", spew.Sdump(req))
+		curlCmd, err := http2curl.GetCurlCommand(req)
+		if err != nil {
+			return Article{}, errors.Wrap(err, "response statuscode is not 200 and build curl command fail.")
+		}
+		return Article{}, errors.New(fmt.Sprintf("response statuscode is not 200. curl : %s", curlCmd.String()))
 	}
 
 	// response content-type=text/html:charset=EUC-KR
@@ -79,6 +87,7 @@ func scrapNews(client *http.Client, url string) (Article, error) {
 	doc.Find("#articleBodyContents").Children().Remove()
 	article.Body = strings.TrimSpace(doc.Find("#articleBodyContents").Text())
 
+	c.Log.Infow("success scrapNews")
 	return article, nil
 }
 
@@ -94,5 +103,5 @@ func parseTime(timestr string) (time.Time, error) {
 		return t.Add(time.Hour * 12), nil
 	}
 
-	return time.Time{}, fmt.Errorf("parseTime : unknown layout \"%s\"", timestr)
+	return time.Time{}, fmt.Errorf("unknown layout \"%s\"", timestr)
 }

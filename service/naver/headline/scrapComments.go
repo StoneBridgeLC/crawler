@@ -3,8 +3,9 @@ package headline
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/davecgh/go-spew/spew"
+	"github.com/pkg/errors"
 	"io/ioutil"
+	"moul.io/http2curl"
 	"net/http"
 	"net/url"
 	"strconv"
@@ -164,7 +165,11 @@ func SetLastCrawledTimeisNull() time.Time{
 	return time.Unix(0, 0)
 }
 
-func scrapComments(client *http.Client, newsUrl string, lastCrawledTime time.Time) ([]Comment, error) {
+func (c HeadlineNewsCrawler) scrapComments(newsUrl string, lastCrawledTime time.Time) ([]Comment, error) {
+	c.Log.Infow("start scrapComments",
+		"target url", newsUrl,
+		"standard time", lastCrawledTime)
+
 	// news url에서 필요한 정보 추출
 	u, err := url.Parse(newsUrl)
 	if err != nil {
@@ -179,6 +184,8 @@ func scrapComments(client *http.Client, newsUrl string, lastCrawledTime time.Tim
 	// 모든 댓글을 확인하기 위해 "최신순" 정렬(sort=NEW) 후 1페이지부터 끝까지 요청
 	curPage := 1
 	for curPage != 0 {
+		time.Sleep(time.Millisecond * 500)
+
 		// build request
 		// build request url
 		reqUrl, err := url.Parse("https://apis.naver.com/commentBox/cbox/web_naver_list_jsonp.json")
@@ -214,14 +221,23 @@ func scrapComments(client *http.Client, newsUrl string, lastCrawledTime time.Tim
 		req.Header.Add("accept-language", "ko-KR,ko;q=0.9,en-US;q=0.8,en;q=0.7")
 		//req.Header.Add("cookie", "NNB=GYHJCKDIDPRV6; MM_NEW=1; NFS=2; MM_NOW_COACH=1; ASID=dc7494e1000001774d5cbaed00000054; _ga=GA1.2.757796585.1610107391; _ga_7VKFYR6RV1=GS1.1.1616388447.5.0.1616388447.60; nx_ssl=2; BMR=s=1618223855325&r=https%3A%2F%2Fm.blog.naver.com%2FPostView.nhn%3FblogId%3Dkwonsukmin%26logNo%3D221238775732%26proxyReferer%3Dhttps%3A%252F%252Fwww.google.com%252F&r2=https%3A%2F%2Fwww.google.com%2F")
 
-		resp, err := client.Do(req)
+		curlCmd, err := http2curl.GetCurlCommand(req)
+		if err != nil {
+			c.Log.Debugw("failed to GetCurlCommand",
+				"error", err)
+		}
+
+		c.Log.Infow("try request",
+			"curl", curlCmd.String())
+
+		resp, err := c.Client.Do(req)
 		if err != nil {
 			return nil, err
 		}
 		defer resp.Body.Close()
 
 		if resp.StatusCode != 200 {
-			return nil, fmt.Errorf("scrapComments : response statuscode is not 200\n%v", spew.Sdump(req))
+			return nil, errors.New(fmt.Sprintf("response statuscode is not 200. curl : %s", curlCmd.String()))
 		}
 
 		// response body :
@@ -241,10 +257,15 @@ func scrapComments(client *http.Client, newsUrl string, lastCrawledTime time.Tim
 
 		// set next page
 		curPage = commentResponse.Result.PageModel.NextPage
-		for _, comm := range commentResponse.Result.CommentList {
+		for index, comm := range commentResponse.Result.CommentList {
 			regTimeGmt, err := time.Parse(commentTimeLayout, comm.RegTimeGmt)
 			if err != nil {
-				return nil, err
+				c.Log.Errorw("reqTimeGmt parse time error",
+					"request curl", curlCmd.String(),
+					"response", commentResponse,
+					"result.commentList index", index,
+					"error", err)
+				continue
 			}
 
 			// regTimeGmt보다 lastCrawledTime이 더 최근이면 이미 크롤링 된 댓글
@@ -254,17 +275,27 @@ func scrapComments(client *http.Client, newsUrl string, lastCrawledTime time.Tim
 
 			modTimeGmt, err := time.Parse(commentTimeLayout, comm.ModTimeGmt)
 			if err != nil {
-				return nil, err
+				c.Log.Errorw("modTimeGmt parse time error",
+					"request curl", curlCmd.String(),
+					"response", commentResponse,
+					"result.commentList index", index,
+					"error", err)
+				continue
 			}
 
-			c := Comment{}
-			c.Body = comm.Contents
-			c.CreateTime = regTimeGmt
-			c.UpdateTime = modTimeGmt
-			comments = append(comments, c)
+			newComment := Comment{}
+			newComment.Body = comm.Contents
+			newComment.CreateTime = regTimeGmt
+			newComment.UpdateTime = modTimeGmt
+			comments = append(comments, newComment)
+
+			c.Log.Infow("append new comment",
+				"comment", newComment)
 		}
 	}
 
+	c.Log.Infow("success scrapComments",
+		"scraped comment count", len(comments))
 	return comments, nil
 }
 

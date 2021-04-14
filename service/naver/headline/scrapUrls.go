@@ -1,14 +1,19 @@
 package headline
 
 import (
+	"fmt"
 	"github.com/PuerkitoBio/goquery"
+	"github.com/pkg/errors"
+	"moul.io/http2curl"
 	"net/http"
 )
 
 const naverNewsDomain = "https://news.naver.com"
 
 // Scrap Naver Headline news url list
-func scrapUrls(client *http.Client) ([]string, error) {
+func (c HeadlineNewsCrawler) scrapUrls() ([]string, error) {
+	c.Log.Infow("start scrapUrls",
+		"target url", naverNewsDomain)
 	// curl 'https://news.naver.com/' \
 	//   -H 'authority: news.naver.com' \
 	//   -H 'sec-ch-ua: "Google Chrome";v="89", "Chromium";v="89", ";Not A Brand";v="99"' \
@@ -31,11 +36,19 @@ func scrapUrls(client *http.Client) ([]string, error) {
 	req.Header.Set("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/89.0.4389.114 Safari/537.36")
 	req.Header.Set("Accept", "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9")
 
-	resp, err := client.Do(req)
+	resp, err := c.Client.Do(req)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode != 200 {
+		curlCmd, err := http2curl.GetCurlCommand(req)
+		if err != nil {
+			return nil, errors.Wrap(err, "response statuscode is not 200 and build curl command fail.")
+		}
+		return nil, errors.New(fmt.Sprintf("response statuscode is not 200. curl : %s", curlCmd.String()))
+	}
 
 	doc, err := goquery.NewDocumentFromReader(resp.Body)
 	if err != nil {
@@ -50,5 +63,7 @@ func scrapUrls(client *http.Client) ([]string, error) {
 		}
 	})
 
+	c.Log.Infow("success scrapUrls",
+		"scrap url list", newsUrls)
 	return newsUrls, nil
 }
