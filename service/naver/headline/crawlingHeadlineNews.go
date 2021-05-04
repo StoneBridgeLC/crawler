@@ -12,9 +12,10 @@ import (
 	"time"
 )
 
+
 type HeadlineNewsCrawler struct {
-	Log *zap.SugaredLogger
-	DB *sqlx.DB
+	Log    *zap.SugaredLogger
+	DB     *sqlx.DB
 	Client *http.Client
 }
 
@@ -55,11 +56,17 @@ func (c HeadlineNewsCrawler) Crawling() error {
 				continue
 			}
 
+
+
 			newArticle := db.News{
 				//Id:         0,
-				Title:      article.Title,
-				Body:       article.Body,
-				Hash:       hashedValueString,
+				Title: article.Title,
+				Body:  article.Body,
+				Hash:  hashedValueString,
+				Url: sql.NullString{
+					String: url,
+					Valid:  true,
+				},
 				CreateTime: article.CreateTime,
 				UpdateTime: article.UpdateTime,
 			}
