@@ -10,8 +10,12 @@ import (
 	"go.uber.org/zap"
 	"net/http"
 	"time"
+	"unicode/utf8"
 )
 
+// bodyLenLowestLimit 이하의 길이의 뉴스는 크롤링하지 않는다.
+// 기사에 뉴스 동영상만 올려놓고 내용 안쓰는 기사 거르기 위함.
+const bodyLenLowestLimit int = 200
 
 type HeadlineNewsCrawler struct {
 	Log    *zap.SugaredLogger
@@ -56,7 +60,14 @@ func (c HeadlineNewsCrawler) Crawling() error {
 				continue
 			}
 
-
+			// bodyLenLowestLimit 이하의 길이의 뉴스는 크롤링하지 않는다.
+			// 기사에 뉴스 동영상만 올려놓고 내용 안쓰는 기사 거르기 위함.
+			if utf8.RuneCountInString(article.Body) <= bodyLenLowestLimit {
+				c.Log.Infow("skip this article. body size is too short",
+					"url", url,
+					"body", article.Body)
+				continue
+			}
 
 			newArticle := db.News{
 				//Id:         0,
